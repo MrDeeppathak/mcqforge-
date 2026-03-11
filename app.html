@@ -1169,83 +1169,54 @@ async function generate() {
 // ═══════════════════════════════════════════════
 function buildPrompt(syllabus, subject, unit, topic, count, diff, textbook, startOrder) {
   const src = textbook || 'AI Generated';
-  return `You are a Senior University Professor generating MCQs for an institutional question bank.
+  return `You are a Senior University Professor creating university-level MCQs.
 
 SYLLABUS:
 ${syllabus}
 
-Generate exactly ${count} university-level MCQs for:
+Generate exactly ${count} MCQs for:
 Subject: ${subject}
 Unit: ${unit}
 Topic: ${topic}
-Difficulty: ${diff} (${diff==='2'?'Hard/Analytical — scenario-based, conceptual depth required':'Easy/Moderate — direct but accurate'})
+Difficulty: ${diff === '2' ? 'Level 2 — Hard/Analytical (scenario-based, deep conceptual understanding required)' : 'Level 1 — Easy/Moderate (direct, accurate recall)'}
 Source: ${src}
 
-OUTPUT FORMAT — VERY IMPORTANT:
-Each question = exactly ONE line. Each line has exactly 32 values separated by TAB characters.
-The 32 values in exact order are:
+OUTPUT FORMAT — output each question as a block using EXACTLY these labeled lines:
 
-POSITION 1:  [EMPTY — leave blank]
-POSITION 2:  Question text
-POSITION 3:  [EMPTY]
-POSITION 4:  [EMPTY]
-POSITION 5:  Text
-POSITION 6:  Option1 text
-POSITION 7:  [EMPTY]
-POSITION 8:  Option2 text
-POSITION 9:  [EMPTY]
-POSITION 10: Option3 text
-POSITION 11: [EMPTY]
-POSITION 12: Option4 text
-POSITION 13: [EMPTY]
-POSITION 14: [EMPTY]
-POSITION 15: [EMPTY]
-POSITION 16: Answer (just the number: 1, 2, 3, or 4)
-POSITION 17: Solution (2-3 sentence explanation)
-POSITION 18: [EMPTY]
-POSITION 19: [EMPTY]
-POSITION 20: [EMPTY]
-POSITION 21: Blooms_level (1, 2, 3, or 4)
-POSITION 22: Difficulty_level (${diff})
-POSITION 23: Topic_tags (e.g. D02B28GT01T01ST01)
-POSITION 24: [EMPTY]
-POSITION 25: ${src}
-POSITION 26: [EMPTY]
-POSITION 27: [EMPTY]
-POSITION 28: [EMPTY]
-POSITION 29: 1
-POSITION 30: 0
-POSITION 31: MCQ
-POSITION 32: [EMPTY]
+Q: [question text]
+A: [option 1 text]
+B: [option 2 text]
+C: [option 3 text]
+D: [option 4 text]
+ANS: [1, 2, 3, or 4 — which option A/B/C/D is correct]
+SOL: [2-3 sentence explanation of why the answer is correct]
+BL: [Blooms level: 1=recall, 2=understand, 3=apply, 4=analyze]
+###
 
-EXAMPLE of one correct output line (tabs shown as →):
-→Question text here→→→Text→Option A→→Option B→→Option C→→Option D→→→→2→Solution here→→→→2→2→D02B28GT01T01ST01→→${src}→→→→1→0→MCQ→
+Separate each question block with ### on its own line.
 
 RULES:
-- Blooms_level: 1=recall, 2=understand, 3=apply/fill-in-blank/match, 4=analyze/evaluate
-- Answer: ONLY the digit 1, 2, 3, or 4
-- For True/False: Position6="True " Position8="False " Position10="" Position12=""
-- NEVER output column headers
-- NEVER use markdown, code blocks, or explanations
-- Every line must start with a TAB (empty Position 1)
+- ANS must be exactly one digit: 1 (=A), 2 (=B), 3 (=C), or 4 (=D)
+- SOL must explain WHY the correct answer is right in 2-3 sentences
+- BL must be 1, 2, 3, or 4 only
 
-DISTRACTOR RULES (CRITICAL):
-✓ All 4 options MUST use real technical terminology from the domain
-✓ All options must be similar in length and complexity
-✓ Each wrong option must represent a plausible misconception
+DISTRACTOR QUALITY (very important):
+✓ All 4 options must use real technical terminology from the subject domain
+✓ All options must be similar in length and complexity  
+✓ Each wrong option must represent a plausible misconception students would have
 ✗ NEVER use "None of the above" or "All of the above"
-✗ NEVER use obviously wrong or absurd options
+✗ NEVER make wrong options obviously absurd or unrelated
 
-QUESTION TYPE MIX:
-1. Standard analytical MCQ (majority of questions)
-2. True/False — "State True or False: [statement]" → Opt1="True " Opt2="False " Opt3="" Opt4=""
-3. Fill in the blank — use ________ in question, 4 plausible word/phrase options
-4. Match the column — HTML table in question field, options like "A-1 B-2 C-3 D-4"
+QUESTION TYPE MIX — include variety across the ${count} questions:
+1. Standard analytical MCQ — scenario-based, tests deep understanding (majority)
+2. True/False — write as: "State True or False: [statement]" then A: True  B: False  C:  D: 
+3. Fill in the blank — use ________ in question, 4 plausible word/phrase completions as options
+4. Match the column — put HTML table in Q: field, options like A: A-1 B-2 C-3 D-4
 
-Match the column HTML table format for the Question field:
-<p>Match the following:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item1</td><td style="width: 49.941%; height: 47px;">1. Desc1</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. Item2</td><td style="width: 49.941%; height: 47px;">2. Desc2</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. Item3</td><td style="width: 49.941%; height: 47px;">3. Desc3</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. Item4</td><td style="width: 49.941%; height: 47px;">4. Desc4</td></tr></tbody></table>
+For Match the column, use this HTML in the Q: field:
+<p>Match the following [concept]:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item1</td><td style="width: 49.941%; height: 47px;">1. Desc1</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. Item2</td><td style="width: 49.941%; height: 47px;">2. Desc2</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. Item3</td><td style="width: 49.941%; height: 47px;">3. Desc3</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. Item4</td><td style="width: 49.941%; height: 47px;">4. Desc4</td></tr></tbody></table>
 
-OUTPUT ONLY the data lines. No headers. No markdown. No explanations. No code blocks.`;
+OUTPUT ONLY the question blocks. No extra text, no numbering, no markdown.`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1327,81 +1298,78 @@ async function callOpenRouter(key, prompt) {
 }
 
 // ═══════════════════════════════════════════════
-// PARSE ROWS
+// PARSE ROWS — reads Q:/A:/B:/C:/D:/ANS:/SOL:/BL: blocks
 // ═══════════════════════════════════════════════
 function parseRows(text, startOrder) {
-  const lines = text.split('\n').map(l => l.trimEnd()).filter(l => l.length > 4);
+  const src = document.getElementById('textbook').value.trim() || 'AI Generated';
+  const diff = document.querySelector('input[name=diff]:checked').value;
+
+  // Split into blocks by ### separator
+  const blocks = text.split(/###|\n\n(?=Q:)/i).map(b => b.trim()).filter(b => b.length > 10);
   const rows = [];
 
-  lines.forEach(line => {
-    // Skip obvious header/meta lines
-    if (/^question_id/i.test(line.trim())) return;
-    if (/^position\s*\d/i.test(line.trim())) return;
-    if (/^#\s*\|/i.test(line.trim())) return;
-    if (/^---/.test(line.trim())) return;
+  blocks.forEach(block => {
+    const lines = block.split('\n');
+    const get = (prefix) => {
+      const line = lines.find(l => l.trim().toUpperCase().startsWith(prefix + ':'));
+      if (!line) return '';
+      return line.substring(line.indexOf(':') + 1).trim();
+    };
 
-    const rawCols = line.split('\t');
+    const question = get('Q');
+    const opt1     = get('A');
+    const opt2     = get('B');
+    const opt3     = get('C');
+    const opt4     = get('D');
+    const ansRaw   = get('ANS');
+    const solution = get('SOL');
+    const bloomRaw = get('BL');
 
-    // ── STEP 1: Find where the question text is ──
-    // The question is the longest meaningful text chunk in the row.
-    // It should be at position index 1 (col 2 in Excel).
-    // If AI didn't start with a tab, question lands at index 0 — shift right.
+    // Skip incomplete blocks
+    if (!question || question.length < 5) return;
+    if (!opt1 || !opt2) return;
 
-    let c = rawCols.slice(); // copy
+    // Clean answer — must be 1,2,3,4
+    const ans   = String(ansRaw).replace(/[^1-4]/g, '').charAt(0) || '1';
+    const bloom = String(bloomRaw).replace(/[^1-4]/g, '').charAt(0) || '2';
 
-    // Detect if question is at index 0 (AI forgot leading tab)
-    // Heuristic: index 0 has long text AND index 4 is not "Text"
-    const hasLeadingTab = line.startsWith('\t');
-    if (!hasLeadingTab) {
-      c = ['', ...c]; // shift everything right by 1
-    }
+    // Build the 32-column row
+    const row = [
+      '',          // [0]  Question_Id
+      question,    // [1]  Question
+      '',          // [2]  Question_image
+      '',          // [3]  category_ids
+      'Text',      // [4]  Question_type
+      opt1,        // [5]  Option1
+      '',          // [6]  Option1_image
+      opt2,        // [7]  Option2
+      '',          // [8]  Option2_image
+      opt3,        // [9]  Option3
+      '',          // [10] Option3_image
+      opt4,        // [11] Option4
+      '',          // [12] Option4_image
+      '',          // [13] Option5
+      '',          // [14] Option5_image
+      ans,         // [15] Answer
+      solution,    // [16] Solution
+      '',          // [17] Solution_image
+      '',          // [18] Hint
+      '',          // [19] Hint_image
+      bloom,       // [20] Blooms_level
+      diff,        // [21] Difficulty_level
+      '',          // [22] Topic_tags
+      '',          // [23] Prerequisite_tags
+      src,         // [24] Source
+      '',          // [25] Source_links
+      '',          // [26] Concept_Summary_id
+      '',          // [27] Order
+      '1',         // [28] math_type
+      '0',         // [29] force_upload
+      'MCQ',       // [30] field_type
+      ''           // [31] option_order
+    ];
 
-    // ── STEP 2: Pad / trim to exactly 32 ──
-    while (c.length < 32) c.push('');
-    c = c.slice(0, 32);
-
-    // ── STEP 3: Enforce all fixed columns ──
-    c[0]  = '';       // Question_Id
-    c[2]  = '';       // Question_image
-    c[3]  = '';       // category_ids
-    c[4]  = 'Text';   // Question_type
-    c[6]  = '';       // Option1_image
-    c[8]  = '';       // Option2_image
-    c[10] = '';       // Option3_image
-    c[12] = '';       // Option4_image
-    c[13] = '';       // Option5
-    c[14] = '';       // Option5_image
-    c[17] = '';       // Solution_image
-    c[18] = '';       // Hint
-    c[19] = '';       // Hint_image
-    c[23] = '';       // Prerequisite_tags
-    c[25] = '';       // Source_links
-    c[26] = '';       // Concept_Summary_id
-    c[27] = '';       // Order
-    c[28] = '1';      // math_type
-    c[29] = '0';      // force_upload
-    c[30] = 'MCQ';    // field_type
-    c[31] = '';       // option_order
-
-    // ── STEP 4: Validate question exists ──
-    const question = (c[1] || '').trim();
-    if (question.length < 10) return;
-
-    // ── STEP 5: Clean & validate answer ──
-    const rawAns = String(c[15] || '').trim();
-    const ansDigit = rawAns.replace(/[^1-4]/g, '').charAt(0);
-    if (!ansDigit) return; // no valid answer found, skip row
-    c[15] = ansDigit;
-
-    // ── STEP 6: Validate Blooms level ──
-    const bloom = String(c[20] || '').trim().replace(/[^1-4]/g, '').charAt(0);
-    c[20] = bloom || '2';
-
-    // ── STEP 7: Clean difficulty ──
-    const diff = String(c[21] || '').trim().replace(/[^12]/g, '').charAt(0);
-    c[21] = diff || '2';
-
-    rows.push(c);
+    rows.push(row);
   });
 
   return rows;
