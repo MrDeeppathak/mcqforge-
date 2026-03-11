@@ -1130,6 +1130,10 @@ async function generate() {
       const prompt = buildPrompt(syllabus, subject, unit, t.name, t.count, diff, textbook, orderNum);
       const raw    = await callAI(apiKey, prompt);
       const rows   = parseRows(raw, orderNum);
+
+      if (rows.length === 0) {
+        throw new Error(`AI returned output but no valid rows could be parsed for topic "${t.name}". The AI may have returned an unexpected format. Please try again or switch to a different AI model.`);
+      }
       allRows = allRows.concat(rows);
       orderNum += rows.length;
 
@@ -1330,63 +1334,72 @@ function parseRows(text, startOrder) {
   const rows = [];
 
   lines.forEach(line => {
-    // Skip header lines
+    // Skip obvious header/meta lines
     if (/^question_id/i.test(line.trim())) return;
-    if (/^position/i.test(line.trim())) return;
+    if (/^position\s*\d/i.test(line.trim())) return;
+    if (/^#\s*\|/i.test(line.trim())) return;
+    if (/^---/.test(line.trim())) return;
 
-    const cols = line.split('\t');
+    const rawCols = line.split('\t');
 
-    // The AI should output lines starting with a tab (empty col 1)
-    // If line doesn't start with tab, the question is in col 0 — shift everything right
-    let c = cols;
-    if (cols[0] && cols[0].trim().length > 5 && !cols[1]) {
-      // Question is in position 0, need to shift right by 1
-      c = ['', ...cols];
-    } else if (cols[0] && cols[0].trim().length > 5) {
-      // Question might be in position 0 with data after
-      // Check if position 4 is "Text" (correct) or position 3 is "Text" (shifted)
-      if (cols[3] === 'Text') {
-        c = ['', ...cols]; // shift right
-      } else if (cols[4] === 'Text') {
-        c = cols; // already correct
-      } else {
-        c = ['', ...cols]; // default: shift right
-      }
+    // ── STEP 1: Find where the question text is ──
+    // The question is the longest meaningful text chunk in the row.
+    // It should be at position index 1 (col 2 in Excel).
+    // If AI didn't start with a tab, question lands at index 0 — shift right.
+
+    let c = rawCols.slice(); // copy
+
+    // Detect if question is at index 0 (AI forgot leading tab)
+    // Heuristic: index 0 has long text AND index 4 is not "Text"
+    const hasLeadingTab = line.startsWith('\t');
+    if (!hasLeadingTab) {
+      c = ['', ...c]; // shift everything right by 1
     }
 
-    // Pad to 32
+    // ── STEP 2: Pad / trim to exactly 32 ──
     while (c.length < 32) c.push('');
     c = c.slice(0, 32);
 
-    // Enforce fixed values at correct positions
-    c[0]  = '';           // Question_Id: empty
-    c[2]  = '';           // Question_image: empty
-    c[3]  = '';           // category_ids: empty
-    c[4]  = 'Text';       // Question_type
-    c[6]  = '';           // Option1_image
-    c[8]  = '';           // Option2_image
-    c[10] = '';           // Option3_image
-    c[12] = '';           // Option4_image
-    c[13] = '';           // Option5
-    c[14] = '';           // Option5_image
-    c[17] = '';           // Solution_image
-    c[18] = '';           // Hint
-    c[19] = '';           // Hint_image
-    c[23] = '';           // Prerequisite_tags: empty (matches correct format)
-    c[25] = '';           // Source_links
-    c[26] = '';           // Concept_Summary_id
-    c[27] = '';           // Order: empty (matches correct format)
-    c[28] = '1';          // math_type: 1 (matches correct format)
-    c[29] = '0';          // force_upload
-    c[30] = 'MCQ';        // field_type
-    c[31] = '';           // option_order
+    // ── STEP 3: Enforce all fixed columns ──
+    c[0]  = '';       // Question_Id
+    c[2]  = '';       // Question_image
+    c[3]  = '';       // category_ids
+    c[4]  = 'Text';   // Question_type
+    c[6]  = '';       // Option1_image
+    c[8]  = '';       // Option2_image
+    c[10] = '';       // Option3_image
+    c[12] = '';       // Option4_image
+    c[13] = '';       // Option5
+    c[14] = '';       // Option5_image
+    c[17] = '';       // Solution_image
+    c[18] = '';       // Hint
+    c[19] = '';       // Hint_image
+    c[23] = '';       // Prerequisite_tags
+    c[25] = '';       // Source_links
+    c[26] = '';       // Concept_Summary_id
+    c[27] = '';       // Order
+    c[28] = '1';      // math_type
+    c[29] = '0';      // force_upload
+    c[30] = 'MCQ';    // field_type
+    c[31] = '';       // option_order
 
-    // Validate: must have a question (pos 1) and at least answer (pos 15)
-    if (!c[1] || c[1].trim().length < 5) return;
-    if (!c[15] || !['1','2','3','4'].includes(String(c[15]).trim())) return;
+    // ── STEP 4: Validate question exists ──
+    const question = (c[1] || '').trim();
+    if (question.length < 10) return;
 
-    // Clean answer field — extract just the digit
-    c[15] = String(c[15]).trim().replace(/[^1-4]/g, '') || '1';
+    // ── STEP 5: Clean & validate answer ──
+    const rawAns = String(c[15] || '').trim();
+    const ansDigit = rawAns.replace(/[^1-4]/g, '').charAt(0);
+    if (!ansDigit) return; // no valid answer found, skip row
+    c[15] = ansDigit;
+
+    // ── STEP 6: Validate Blooms level ──
+    const bloom = String(c[20] || '').trim().replace(/[^1-4]/g, '').charAt(0);
+    c[20] = bloom || '2';
+
+    // ── STEP 7: Clean difficulty ──
+    const diff = String(c[21] || '').trim().replace(/[^12]/g, '').charAt(0);
+    c[21] = diff || '2';
 
     rows.push(c);
   });
