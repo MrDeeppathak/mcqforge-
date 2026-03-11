@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCQ Forge — Generator App</title>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Cabinet+Grotesk:wght@300;400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060608;
+  --surface: #0e0f14;
+  --surface2: #15161d;
+  --surface3: #1c1e28;
+  --border: #1e2030;
+  --border2: #2a2d40;
+  --gold: #f0c040;
+  --gold2: #ffd97a;
+  --blue: #4f8ef7;
+  --green: #3ecf8e;
+  --red: #ff6b6b;
+  --orange: #ff9f43;
+  --text: #eceef5;
+  --muted: #5a5f7a;
+  --muted2: #8890aa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999; opacity: 0.35;
+}
+
+/* ── LAYOUT ── */
+.app-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 900px) {
+  .app-layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.sidebar-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-logo {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text);
+  text-decoration: none;
+}
+.sidebar-logo span { color: var(--gold); }
+.sidebar-back {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+  letter-spacing: 0.04em;
+}
+.sidebar-back:hover { color: var(--gold); }
+
+.history-section { flex: 1; padding: 20px; }
+.history-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  transition: color 0.15s;
+}
+.history-clear:hover { color: var(--red); }
+
+.history-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.history-item:hover { border-color: var(--gold); background: var(--surface3); }
+.history-item.active { border-color: var(--gold); background: rgba(240,192,64,0.06); }
+.history-item-title {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.history-item-meta span {
+  background: var(--border);
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+.history-item-del {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.15s;
+  margin-left: 8px;
+}
+.history-item-del:hover { color: var(--red); }
+
+/* ── MAIN CONTENT ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* top bar */
+.topbar {
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+.topbar-mobile-logo {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text);
+  text-decoration: none;
+  display: none;
+}
+.topbar-mobile-logo span { color: var(--gold); }
+@media (max-width: 900px) {
+  .topbar-title { display: none; }
+  .topbar-mobile-logo { display: block; }
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tab-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted2);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  padding: 8px 14px;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: all 0.15s;
+}
+.tab-btn.active, .tab-btn:hover { border-color: var(--gold); color: var(--gold); background: rgba(240,192,64,0.06); }
+
+/* ── FORM AREA ── */
+.form-area {
+  padding: 32px;
+  max-width: 820px;
+  width: 100%;
+}
+@media (max-width: 600px) { .form-area { padding: 20px; } }
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s;
+}
+.card:focus-within { border-color: rgba(240,192,64,0.4); }
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.card-num {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #060608;
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.card-num.key { background: var(--blue); color: #fff; }
+.card-title {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+}
+.card-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  letter-spacing: 0.04em;
+}
+
+/* ── FORM ELEMENTS ── */
+label {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+input[type="text"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 15px;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+  -moz-appearance: textfield;
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button { -webkit-appearance: none; }
+input:focus, textarea:focus, select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240,192,64,0.08);
+}
+textarea { min-height: 150px; line-height: 1.65; font-size: 14px; }
+select option { background: #0e0f14; }
+.fg { margin-bottom: 16px; }
+.fg:last-child { margin-bottom: 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 600px) { .row2 { grid-template-columns: 1fr; } }
+
+/* ── AI MODEL SELECTOR ── */
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (max-width: 500px) { .model-grid { grid-template-columns: 1fr; } }
+
+.model-card {
+  background: var(--bg);
+  border: 2px solid var(--border2);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+.model-card:hover { border-color: var(--gold); }
+.model-card.selected {
+  border-color: var(--gold);
+  background: rgba(240,192,64,0.06);
+}
+.model-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0; height: 0;
+}
+.model-icon { font-size: 22px; margin-bottom: 8px; }
+.model-name {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.model-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+  display: inline-block;
+}
+.tag-free { color: var(--green); background: rgba(62,207,142,0.1); }
+.tag-paid { color: var(--muted2); background: var(--surface2); }
+.model-hint {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.model-check {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  transition: all 0.15s;
+}
+.model-card.selected .model-check {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+.model-card.selected .model-check::after {
+  content: '✓';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: #060608;
+  font-weight: 700;
+}
+
+/* ── API KEY FIELD ── */
+.api-key-wrap {
+  position: relative;
+}
+.api-key-wrap input { padding-right: 80px; }
+.api-key-toggle {
+  position: absolute;
+  right: 12px; top: 50%;
+  transform: translateY(-50%);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted2);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: color 0.15s;
+}
+.api-key-toggle:hover { color: var(--gold); }
+.hint-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.65;
+}
+.hint-text a { color: var(--blue); text-decoration: none; }
+.hint-text a:hover { text-decoration: underline; }
+
+/* ── DIFFICULTY TOGGLE ── */
+.diff-toggle {
+  display: flex;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.diff-toggle input { display: none; }
+.diff-toggle label {
+  flex: 1; text-align: center;
+  padding: 12px;
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--bg);
+  transition: all 0.15s;
+  margin: 0; border: none;
+}
+.diff-toggle input:checked + label {
+  background: var(--gold);
+  color: #060608;
+  font-weight: 600;
+}
+
+/* ── TOPICS ── */
+.topic-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 36px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.topic-row input[type="number"] { text-align: center; padding: 12px 8px; }
+.btn-remove-topic {
+  width: 36px; height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btn-remove-topic:hover { background: rgba(255,107,107,0.1); border-color: var(--red); }
+.btn-add-topic {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: all 0.2s;
+  letter-spacing: 0.06em;
+}
+.btn-add-topic:hover { border-color: var(--gold); color: var(--gold); }
+.total-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted2);
+}
+.total-pill strong { color: var(--gold); }
+
+/* ── GENERATE BTN ── */
+.btn-generate {
+  width: 100%;
+  padding: 20px;
+  background: var(--gold);
+  color: #060608;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.btn-generate:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(240,192,64,0.35);
+}
+.btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── PROGRESS ── */
+.progress-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 20px;
+  display: none;
+}
+.progress-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  font-family: 'Clash Display', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-bar-bg {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--gold));
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.progress-log {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.9;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.log-active { color: var(--gold); }
+.log-done { color: var(--green); }
+.log-done::before { content: '✓  '; }
+
+/* ── ERROR ── */
+.error-card {
+  background: rgba(255,107,107,0.07);
+  border: 1px solid rgba(255,107,107,0.25);
+  border-radius: 10px;
+  padding: 16px 20px;
+  color: var(--red);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  margin-bottom: 20px;
+  display: none;
+  line-height: 1.6;
+}
+
+/* ── RESULT ── */
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  display: none;
+}
+.result-head {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.result-title {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.result-badge {
+  background: rgba(62,207,142,0.15);
+  color: var(--green);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  letter-spacing: 0.06em;
+}
+.result-meta-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-dl {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  font-weight: 500;
+}
+.btn-tsv { background: var(--gold); color: #060608; border-color: var(--gold); }
+.btn-tsv:hover { box-shadow: 0 4px 20px rgba(240,192,64,0.3); transform: translateY(-1px); }
+.btn-copy-tsv { background: transparent; color: var(--text); border-color: var(--border2); }
+.btn-copy-tsv:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── PREVIEW TABLE ── */
+.table-wrap {
+  overflow: auto;
+  max-height: 460px;
+}
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+}
+.preview-table th {
+  background: rgba(240,192,64,0.07);
+  color: var(--muted2);
+  padding: 10px 16px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  white-space: nowrap;
+}
+.preview-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.preview-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+.preview-table tr:hover td { background: rgba(240,192,64,0.04); }
+.td-answer {
+  color: var(--green) !important;
+  font-weight: 600;
+}
+.td-bloom {
+  background: rgba(79,142,247,0.08) !important;
+  color: var(--blue) !important;
+}
+
+/* ── HISTORY TAB (panel) ── */
+#history-panel { display: none; }
+.history-panel-inner { padding: 32px; max-width: 820px; }
+.history-panel-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  line-height: 2;
+}
+.history-panel-empty .big { font-size: 48px; margin-bottom: 16px; }
+.hp-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.hp-card-head {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hp-card-title {
+  font-family: 'Clash Display', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+.hp-card-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.hp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  background: var(--green);
+  color: #060608;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 22px;
+  border-radius: 8px;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 9998;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <a href="index.html" class="sidebar-logo">MCQ<span>Forge</span></a>
+      <a href="index.html" class="sidebar-back">← Home</a>
+    </div>
+    <div class="history-section">
+      <div class="history-title">
+        <span>History</span>
+        <button class="history-clear" onclick="clearAllHistory()">Clear all</button>
+      </div>
+      <div id="sidebar-history-list">
+        <div class="history-empty">No question banks yet.<br>Generate your first one!</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <a href="index.html" class="topbar-mobile-logo">MCQ<span>Forge</span></a>
+      <span class="topbar-title">Question Bank Generator</span>
+      <div class="topbar-right">
+        <button class="tab-btn active" id="tab-generate" onclick="switchTab('generate')">Generate</button>
+        <button class="tab-btn" id="tab-history" onclick="switchTab('history')">History</button>
+      </div>
+    </div>
+
+    <!-- GENERATE PANEL -->
+    <div id="generate-panel">
+      <div class="form-area">
+
+        <!-- STEP 0: AI MODEL -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-num key">AI</div>
+            <div>
+              <div class="card-title">Choose AI Model</div>
+              <div class="card-sub">Pick any provider — enter its API key below</div>
+            </div>
+          </div>
+
+          <div class="model-grid" id="model-grid">
+            <label class="model-card selected" onclick="selectModel(this,'claude')">
+              <input type="radio" name="model" value="claude" checked>
+              <div class="model-check"></div>
+              <div class="model-icon">✦</div>
+              <div class="model-name">Claude</div>
+              <div class="model-tag tag-paid">Anthropic</div>
+              <div class="model-hint">claude-sonnet-4-20250514<br>Needs paid credits</div>
+            </label>
+            <label class="model-card" onclick="selectModel(this,'chatgpt')">
+              <input type="radio" name="model" value="chatgpt">
+              <div class="model-check"></div>
+              <div class="model-icon">◎</div>
+              <div class="model-name">ChatGPT</div>
+              <div class="model-tag tag-paid">OpenAI</div>
+              <div class="model-hint">gpt-4o<br>Needs paid credits</div>
+            </label>
+            <label class="model-card" onclick="selectModel(this,'gemini')">
+              <input type="radio" name="model" value="gemini">
+              <div class="model-check"></div>
+              <div class="model-icon">◈</div>
+              <div class="model-name">Gemini</div>
+              <div class="model-tag tag-free">FREE TIER ✓</div>
+              <div class="model-hint">gemini-2.0-flash<br>Free — no card needed</div>
+            </label>
+            <label class="model-card" onclick="selectModel(this,'openrouter')">
+              <input type="radio" name="model" value="openrouter">
+              <div class="model-check"></div>
+              <div class="model-icon">⬡</div>
+              <div class="model-name">OpenRouter</div>
+              <div class="model-tag tag-free">FREE CREDITS</div>
+              <div class="model-hint">Multiple models<br>Free credits on signup</div>
+            </label>
+          </div>
+
+          <div class="fg" style="margin-top:20px;">
+            <label>API Key</label>
+            <div class="api-key-wrap">
+              <input type="password" id="apiKey" placeholder="Paste your API key here..." autocomplete="off"/>
+              <button class="api-key-toggle" onclick="toggleKey()">Show</button>
+            </div>
+            <div class="hint-text" id="key-hint">
+              Get your key at <a href="https://console.anthropic.com" target="_blank" id="key-link">console.anthropic.com</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 1: SYLLABUS -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-num">1</div>
+            <div>
+              <div class="card-title">Paste Syllabus</div>
+              <div class="card-sub">Full course content or specific unit</div>
+            </div>
+          </div>
+          <div class="fg">
+            <label>Syllabus / Course Content</label>
+            <textarea id="syllabus" placeholder="Paste your full syllabus here. Include unit names, topics, and textbook references for best results..."></textarea>
+          </div>
+        </div>
+
+        <!-- STEP 2: CONFIGURATION -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-num">2</div>
+            <div>
+              <div class="card-title">Configure</div>
+              <div class="card-sub">Subject details and difficulty</div>
+            </div>
+          </div>
+          <div class="row2">
+            <div class="fg">
+              <label>Subject Name</label>
+              <input type="text" id="subject" placeholder="e.g. Web Technologies"/>
+            </div>
+            <div class="fg">
+              <label>Unit Name</label>
+              <input type="text" id="unit" placeholder="e.g. Unit VI – ReactJS"/>
+            </div>
+          </div>
+          <div class="fg">
+            <label>Textbook Reference (optional)</label>
+            <input type="text" id="textbook" placeholder="e.g. Pro MERN Stack – Vasan Subramanian, 2nd Ed."/>
+          </div>
+          <div class="fg">
+            <label>Difficulty Level</label>
+            <div class="diff-toggle">
+              <input type="radio" name="diff" id="d1" value="1"/>
+              <label for="d1">Level 1 — Easy / Moderate</label>
+              <input type="radio" name="diff" id="d2" value="2" checked/>
+              <label for="d2">Level 2 — Hard / Analytical</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: TOPICS -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-num">3</div>
+            <div>
+              <div class="card-title">Topics & MCQ Count</div>
+              <div class="card-sub">Add one or more topics</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 90px 36px;gap:10px;margin-bottom:8px;">
+            <label style="margin:0">Topic Name</label>
+            <label style="text-align:center;margin:0">Count</label>
+            <div></div>
+          </div>
+
+          <div id="topics-wrap">
+            <div class="topic-row">
+              <input type="text" placeholder="e.g. Virtual DOM and One-way Binding"/>
+              <input type="number" value="20" min="1" max="60" oninput="updateTotal()"/>
+              <button class="btn-remove-topic" onclick="removeTopic(this)">×</button>
+            </div>
+          </div>
+          <button class="btn-add-topic" onclick="addTopic()">+ Add Another Topic</button>
+          <div class="total-pill">Total: <strong id="total-count">20</strong> MCQs</div>
+        </div>
+
+        <!-- GENERATE -->
+        <button class="btn-generate" id="genBtn" onclick="generate()">
+          ⚡ Generate Question Bank
+        </button>
+
+        <!-- PROGRESS -->
+        <div class="progress-card" id="prog-card">
+          <div class="progress-head">
+            <div class="spinner" id="spinner"></div>
+            <span id="prog-title">Generating MCQs...</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="prog-bar"></div>
+          </div>
+          <div class="progress-log" id="prog-log"></div>
+        </div>
+
+        <!-- ERROR -->
+        <div class="error-card" id="error-card"></div>
+
+        <!-- RESULT -->
+        <div class="result-card" id="result-card">
+          <div class="result-head">
+            <div>
+              <div class="result-title">
+                Question Bank Ready
+                <span class="result-badge">✓ DONE</span>
+              </div>
+              <div class="result-meta-text" id="result-meta"></div>
+            </div>
+            <div class="result-actions">
+              <button class="btn-dl btn-copy-tsv" onclick="copyTSV()">📋 Copy TSV</button>
+              <button class="btn-dl btn-tsv" onclick="downloadTSV()">⬇ Download .tsv</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Question</th>
+                  <th>Option 1</th>
+                  <th>Option 2</th>
+                  <th>Option 3</th>
+                  <th>Option 4</th>
+                  <th>Ans</th>
+                  <th>Bloom</th>
+                  <th>Diff</th>
+                  <th>Topic</th>
+                </tr>
+              </thead>
+              <tbody id="preview-body"></tbody>
+            </table>
+          </div>
+          <div style="padding:14px 20px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);border-top:1px solid var(--border);">
+            📌 Tip: Open the .tsv file → Select All → Copy → Paste into Excel starting at cell A2
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /generate-panel -->
+
+    <!-- HISTORY PANEL -->
+    <div id="history-panel">
+      <div class="history-panel-inner">
+        <div id="history-panel-content"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let currentTSV = '';
+let currentRows = [];
+let currentMeta = {};
+let selectedModel = 'claude';
+
+const MODEL_HINTS = {
+  claude:      { hint: 'Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — API Keys section', ph: 'sk-ant-api03-...' },
+  chatgpt:     { hint: 'Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>', ph: 'sk-proj-...' },
+  gemini:      { hint: '🆓 FREE — Get your key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> — no credit card needed!', ph: 'AIza...' },
+  openrouter:  { hint: '🆓 FREE credits — Get key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> after signing up', ph: 'sk-or-...' }
+};
+
+// ═══════════════════════════════════════════════
+// MODEL SELECTION
+// ═══════════════════════════════════════════════
+function selectModel(card, model) {
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedModel = model;
+  const info = MODEL_HINTS[model];
+  document.getElementById('key-hint').innerHTML = info.hint;
+  document.getElementById('apiKey').placeholder = info.ph;
+}
+
+function toggleKey() {
+  const inp = document.getElementById('apiKey');
+  const btn = document.querySelector('.api-key-toggle');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+// ═══════════════════════════════════════════════
+// TOPIC MANAGEMENT
+// ═══════════════════════════════════════════════
+function addTopic() {
+  const wrap = document.getElementById('topics-wrap');
+  const row = document.createElement('div');
+  row.className = 'topic-row';
+  row.innerHTML = `
+    <input type="text" placeholder="e.g. React Router"/>
+    <input type="number" value="10" min="1" max="60" oninput="updateTotal()"/>
+    <button class="btn-remove-topic" onclick="removeTopic(this)">×</button>
+  `;
+  wrap.appendChild(row);
+  updateTotal();
+  row.querySelector('input[type=text]').focus();
+}
+
+function removeTopic(btn) {
+  const rows = document.querySelectorAll('.topic-row');
+  if (rows.length <= 1) return;
+  btn.closest('.topic-row').remove();
+  updateTotal();
+}
+
+function updateTotal() {
+  let t = 0;
+  document.querySelectorAll('.topic-row input[type=number]').forEach(n => t += parseInt(n.value)||0);
+  document.getElementById('total-count').textContent = t;
+}
+
+document.addEventListener('input', e => { if (e.target.type === 'number') updateTotal(); });
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+function switchTab(tab) {
+  document.getElementById('tab-generate').classList.toggle('active', tab === 'generate');
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('generate-panel').style.display = tab === 'generate' ? 'block' : 'none';
+  document.getElementById('history-panel').style.display = tab === 'history' ? 'block' : 'none';
+  if (tab === 'history') renderHistoryPanel();
+}
+
+// ═══════════════════════════════════════════════
+// GENERATE
+// ═══════════════════════════════════════════════
+async function generate() {
+  const apiKey   = document.getElementById('apiKey').value.trim();
+  const syllabus = document.getElementById('syllabus').value.trim();
+  const subject  = document.getElementById('subject').value.trim();
+  const unit     = document.getElementById('unit').value.trim();
+  const textbook = document.getElementById('textbook').value.trim();
+  const diff     = document.querySelector('input[name=diff]:checked').value;
+
+  const topicRows = document.querySelectorAll('.topic-row');
+  const topics = [];
+  topicRows.forEach(r => {
+    const name  = r.querySelector('input[type=text]').value.trim();
+    const count = parseInt(r.querySelector('input[type=number]').value)||0;
+    if (name && count > 0) topics.push({name, count});
+  });
+
+  if (!apiKey)    return showError('Please enter your API key.');
+  if (!syllabus)  return showError('Please paste your syllabus.');
+  if (!subject)   return showError('Please enter the subject name.');
+  if (!unit)      return showError('Please enter the unit name.');
+  if (!topics.length) return showError('Please add at least one topic.');
+
+  hideError();
+  showProgress();
+  setBtn(true);
+
+  const headers = [
+    "Question_Id","Question","Question_image","category_ids","Question_type",
+    "Option1","Option1_image","Option2","Option2_image",
+    "Option3","Option3_image","Option4","Option4_image",
+    "Option5","Option5_image","Answer","Solution","Solution_image",
+    "Hint","Hint_image","Blooms_level","Difficulty_level",
+    "Topic_tags","Prerequisite_tags","Source","Source_links",
+    "Concept_Summary_id","Order","math_type","force_upload","field_type","option_order"
+  ];
+
+  let allRows = [];
+  let orderNum = 1;
+
+  try {
+    for (let i = 0; i < topics.length; i++) {
+      const t = topics[i];
+      logStep(`Generating ${t.count} MCQs — ${t.name}`, 'active');
+      setProgress(Math.round((i / topics.length) * 80));
+
+      const prompt = buildPrompt(syllabus, subject, unit, t.name, t.count, diff, textbook, orderNum);
+      const raw    = await callAI(apiKey, prompt);
+      const rows   = parseRows(raw, orderNum);
+      allRows = allRows.concat(rows);
+      orderNum += rows.length;
+
+      logStep(`${t.name} — ${rows.length} done`, 'done');
+      setProgress(Math.round(((i+1)/topics.length)*90));
+    }
+
+    setProgress(100);
+    logStep('Building output file...', 'active');
+
+    const tsvLines = [headers.join('\t'), ...allRows.map(r => r.join('\t'))];
+    currentTSV  = tsvLines.join('\n');
+    currentRows = allRows;
+    currentMeta = { subject, unit, topics, diff, model: selectedModel, date: new Date().toISOString(), totalCount: allRows.length };
+
+    logStep(`Done! ${allRows.length} MCQs ready.`, 'done');
+    stopSpinner('Generation complete! ✓');
+    saveToHistory({ ...currentMeta, tsv: currentTSV });
+
+    setTimeout(() => {
+      showResult(allRows, currentMeta);
+    }, 500);
+
+  } catch(err) {
+    stopSpinner('Error');
+    showError('⚠ ' + err.message);
+    setBtn(false);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// PROMPT BUILDER
+// ═══════════════════════════════════════════════
+function buildPrompt(syllabus, subject, unit, topic, count, diff, textbook, startOrder) {
+  const src = textbook || 'AI Generated';
+  return `You are a Senior University Professor generating MCQs for an institutional question bank.
+
+SYLLABUS:
+${syllabus}
+
+Generate exactly ${count} university-level MCQs for:
+Subject: ${subject}
+Unit: ${unit}
+Topic: ${topic}
+Difficulty: ${diff} (${diff==='2'?'Hard/Analytical — scenario-based, conceptual depth required':'Easy/Moderate — direct but accurate'})
+Source: ${src}
+
+OUTPUT FORMAT: Tab-separated rows. Each row = one question. Exactly 32 tab-separated columns:
+Question_Id[TAB]Question[TAB]Question_image[TAB]category_ids[TAB]Question_type[TAB]Option1[TAB]Option1_image[TAB]Option2[TAB]Option2_image[TAB]Option3[TAB]Option3_image[TAB]Option4[TAB]Option4_image[TAB]Option5[TAB]Option5_image[TAB]Answer[TAB]Solution[TAB]Solution_image[TAB]Hint[TAB]Hint_image[TAB]Blooms_level[TAB]Difficulty_level[TAB]Topic_tags[TAB]Prerequisite_tags[TAB]Source[TAB]Source_links[TAB]Concept_Summary_id[TAB]Order[TAB]math_type[TAB]force_upload[TAB]field_type[TAB]option_order
+
+COLUMN RULES:
+- Question_Id: empty
+- Question_image, category_ids, Option1_image, Option2_image, Option3_image, Option4_image, Option5, Option5_image: all empty
+- Question_type: Text
+- Answer: 1, 2, 3 or 4 (which option number is correct)
+- Solution: 2–3 sentence explanation of why the answer is correct
+- Solution_image, Hint, Hint_image, Source_links, Concept_Summary_id: empty
+- Blooms_level: 1=recall 2=understand 3=apply/fill-blank/match 4=analyze/evaluate
+- Difficulty_level: ${diff}
+- Topic_tags: JSON array e.g. ["${topic}"]
+- Prerequisite_tags: JSON array of prerequisite concepts
+- Source: ${src}
+- Order: sequential starting from ${startOrder}
+- math_type: 0
+- force_upload: 0
+- field_type: MCQ
+- option_order: empty
+
+DISTRACTOR RULES (CRITICAL for quality):
+✓ All 4 options MUST use real technical terminology from the domain
+✓ All options must have similar length and complexity
+✓ Each wrong option should represent a plausible misconception
+✗ NEVER use "None of the above" or "All of the above"
+✗ NEVER use obviously absurd or unrelated options
+✗ NEVER make the correct answer longer/shorter than the wrong ones
+
+QUESTION TYPE MIX (vary across your output):
+1. Standard MCQ — analytical, scenario-based (majority)
+2. True/False — "State True or False: [statement]" → Option1="True " Option2="False " Option3="" Option4=""
+3. Fill in blank — use ________ in question text, 4 plausible completions as options
+4. Match the column — use HTML table in Question cell, options as "A-1 B-2 C-3 D-4" etc.
+
+Match the column HTML format:
+<p>Match the following:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item1</td><td style="width: 49.941%; height: 47px;">1. Desc1</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. Item2</td><td style="width: 49.941%; height: 47px;">2. Desc2</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. Item3</td><td style="width: 49.941%; height: 47px;">3. Desc3</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. Item4</td><td style="width: 49.941%; height: 47px;">4. Desc4</td></tr></tbody></table>
+
+OUTPUT ONLY the tab-separated data rows. No headers. No markdown. No code blocks. No explanations.`;
+}
+
+// ═══════════════════════════════════════════════
+// AI CALLERS
+// ═══════════════════════════════════════════════
+async function callAI(apiKey, prompt) {
+  switch(selectedModel) {
+    case 'claude':     return callClaude(apiKey, prompt);
+    case 'chatgpt':    return callChatGPT(apiKey, prompt);
+    case 'gemini':     return callGemini(apiKey, prompt);
+    case 'openrouter': return callOpenRouter(apiKey, prompt);
+  }
+}
+
+async function callClaude(key, prompt) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || `Claude API error ${r.status}`); }
+  const d = await r.json();
+  return d.content.map(c => c.text||'').join('');
+}
+
+async function callChatGPT(key, prompt) {
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || `OpenAI error ${r.status}`); }
+  const d = await r.json();
+  return d.choices[0]?.message?.content || '';
+}
+
+async function callGemini(key, prompt) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || `Gemini error ${r.status}`); }
+  const d = await r.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+async function callOpenRouter(key, prompt) {
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+      'HTTP-Referer': 'https://mcqforge.github.io',
+      'X-Title': 'MCQ Forge'
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.0-flash-exp:free',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || `OpenRouter error ${r.status}`); }
+  const d = await r.json();
+  return d.choices?.[0]?.message?.content || '';
+}
+
+// ═══════════════════════════════════════════════
+// PARSE ROWS
+// ═══════════════════════════════════════════════
+function parseRows(text, startOrder) {
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>10);
+  const rows = [];
+  let order = startOrder;
+  lines.forEach(line => {
+    if (/^question_id/i.test(line)) return;
+    const cols = line.split('\t');
+    if (cols.length < 16) return;
+    while (cols.length < 32) cols.push('');
+    cols[27] = String(order++);
+    cols[4]  = cols[4]  || 'Text';
+    cols[28] = '0';
+    cols[29] = '0';
+    cols[30] = cols[30] || 'MCQ';
+    rows.push(cols.slice(0,32));
+  });
+  return rows;
+}
+
+// ═══════════════════════════════════════════════
+// SHOW RESULT
+// ═══════════════════════════════════════════════
+function showResult(rows, meta) {
+  document.getElementById('prog-card').style.display = 'none';
+  const rc = document.getElementById('result-card');
+  rc.style.display = 'block';
+
+  document.getElementById('result-meta').textContent =
+    `${meta.totalCount} MCQs · ${meta.subject} · ${meta.unit} · ${meta.model.toUpperCase()} · Difficulty ${meta.diff}`;
+
+  const tbody = document.getElementById('preview-body');
+  tbody.innerHTML = '';
+  rows.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    const q = (row[1]||'').replace(/<[^>]+>/g,'');
+    const cells = [
+      i+1,
+      q.substring(0,70)+(q.length>70?'…':''),
+      (row[5]||'').substring(0,35)+((row[5]||'').length>35?'…':''),
+      (row[7]||'').substring(0,35)+((row[7]||'').length>35?'…':''),
+      (row[9]||'').substring(0,35)+((row[9]||'').length>35?'…':''),
+      (row[11]||'').substring(0,35)+((row[11]||'').length>35?'…':''),
+      row[15]||'',
+      row[20]||'',
+      row[21]||'',
+      (row[22]||'').replace(/[\[\]"]/g,'')
+    ];
+    cells.forEach((c, ci) => {
+      const td = document.createElement('td');
+      td.textContent = c;
+      if (ci===6) td.className = 'td-answer';
+      if (ci===7) td.className = 'td-bloom';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setBtn(false);
+}
+
+// ═══════════════════════════════════════════════
+// DOWNLOAD & COPY
+// ═══════════════════════════════════════════════
+function downloadTSV() {
+  if (!currentTSV) return;
+  const blob = new Blob([currentTSV], {type:'text/tab-separated-values;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `mcq_${(currentMeta.subject||'bank').replace(/\s+/g,'_')}_${Date.now()}.tsv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyTSV() {
+  if (!currentTSV) return;
+  navigator.clipboard.writeText(currentTSV).then(() => showToast('Copied to clipboard!'));
+}
+
+function downloadHistoryTSV(id) {
+  const h = getHistory();
+  const item = h.find(x => x.id === id);
+  if (!item) return;
+  const blob = new Blob([item.tsv], {type:'text/tab-separated-values;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `mcq_${(item.subject||'bank').replace(/\s+/g,'_')}.tsv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyHistoryTSV(id) {
+  const h    = getHistory();
+  const item = h.find(x => x.id === id);
+  if (!item) return;
+  navigator.clipboard.writeText(item.tsv).then(() => showToast('Copied!'));
+}
+
+// ═══════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('mcqforge_history') || '[]'); }
+  catch { return []; }
+}
+
+function saveToHistory(meta) {
+  const h    = getHistory();
+  const item = { ...meta, id: Date.now().toString() };
+  h.unshift(item);
+  // keep last 20
+  if (h.length > 20) h.splice(20);
+  localStorage.setItem('mcqforge_history', JSON.stringify(h));
+  renderSidebarHistory();
+}
+
+function deleteHistoryItem(id) {
+  const h = getHistory().filter(x => x.id !== id);
+  localStorage.setItem('mcqforge_history', JSON.stringify(h));
+  renderSidebarHistory();
+  renderHistoryPanel();
+}
+
+function clearAllHistory() {
+  if (!confirm('Clear all history?')) return;
+  localStorage.removeItem('mcqforge_history');
+  renderSidebarHistory();
+  renderHistoryPanel();
+}
+
+function renderSidebarHistory() {
+  const h   = getHistory();
+  const el  = document.getElementById('sidebar-history-list');
+  if (!h.length) {
+    el.innerHTML = '<div class="history-empty">No question banks yet.<br>Generate your first one!</div>';
+    return;
+  }
+  el.innerHTML = '';
+  const ul = document.createElement('div');
+  ul.className = 'history-list';
+  h.forEach(item => {
+    const d = new Date(item.id*1||item.date);
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <button class="history-item-del" onclick="event.stopPropagation();deleteHistoryItem('${item.id}')" title="Delete">×</button>
+      <div class="history-item-title">${item.subject||'—'} · ${item.unit||'—'}</div>
+      <div class="history-item-meta">
+        <span>${item.totalCount||0} MCQs</span>
+        <span>${(item.model||'ai').toUpperCase()}</span>
+        <span>${d.toLocaleDateString()}</span>
+      </div>`;
+    div.addEventListener('click', () => {
+      switchTab('history');
+      renderHistoryPanel(item.id);
+    });
+    ul.appendChild(div);
+  });
+  el.appendChild(ul);
+}
+
+function renderHistoryPanel(focusId) {
+  const h   = getHistory();
+  const el  = document.getElementById('history-panel-content');
+  if (!h.length) {
+    el.innerHTML = `<div class="history-panel-empty"><div class="big">📭</div>No history yet.<br>Generate a question bank to see it here.</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  const items = focusId ? [h.find(x=>x.id===focusId),...h.filter(x=>x.id!==focusId)].filter(Boolean) : h;
+  items.forEach(item => {
+    if (!item) return;
+    const d    = new Date(item.id*1||item.date);
+    const rows = parseSavedRows(item.tsv);
+    const card = document.createElement('div');
+    card.className = 'hp-card';
+    card.id = 'hp-' + item.id;
+
+    const topicStr = (item.topics||[]).map(t=>`${t.name}(${t.count})`).join(' · ') || '—';
+
+    card.innerHTML = `
+      <div class="hp-card-head">
+        <div>
+          <div class="hp-card-title">${item.subject||'—'} — ${item.unit||'—'}</div>
+          <div class="hp-card-meta">
+            <span>${item.totalCount||rows.length} MCQs</span>
+            <span>${(item.model||'ai').toUpperCase()}</span>
+            <span>Difficulty ${item.diff||'—'}</span>
+            <span>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px;">${topicStr}</div>
+        </div>
+        <div class="hp-actions">
+          <button class="btn-dl btn-copy-tsv" onclick="copyHistoryTSV('${item.id}')">📋 Copy</button>
+          <button class="btn-dl btn-tsv" onclick="downloadHistoryTSV('${item.id}')">⬇ Download</button>
+          <button class="btn-dl btn-copy-tsv" style="color:var(--red);border-color:rgba(255,107,107,0.3);" onclick="deleteHistoryItem('${item.id}')">🗑 Delete</button>
+        </div>
+      </div>
+      ${rows.length ? buildPreviewTable(rows, item.id) : '<div style="padding:20px;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted)">No preview available</div>'}
+    `;
+    el.appendChild(card);
+  });
+}
+
+function parseSavedRows(tsv) {
+  if (!tsv) return [];
+  const lines = tsv.split('\n').slice(1).filter(l=>l.trim());
+  return lines.map(l => l.split('\t'));
+}
+
+function buildPreviewTable(rows, id) {
+  const cols = ['#','Question','Opt 1','Opt 2','Opt 3','Opt 4','Ans','Bloom','Diff','Topic'];
+  let html = `<div class="table-wrap"><table class="preview-table"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>`;
+  rows.slice(0,10).forEach((row, i) => {
+    const q = (row[1]||'').replace(/<[^>]+>/g,'');
+    const cells = [
+      i+1,
+      q.substring(0,70)+(q.length>70?'…':''),
+      (row[5]||'').substring(0,30)+((row[5]||'').length>30?'…':''),
+      (row[7]||'').substring(0,30)+((row[7]||'').length>30?'…':''),
+      (row[9]||'').substring(0,30)+((row[9]||'').length>30?'…':''),
+      (row[11]||'').substring(0,30)+((row[11]||'').length>30?'…':''),
+      row[15]||'',row[20]||'',row[21]||'',
+      (row[22]||'').replace(/[\[\]"]/g,'')
+    ];
+    html += `<tr>${cells.map((c,ci)=>`<td class="${ci===6?'td-answer':ci===7?'td-bloom':''}">${c}</td>`).join('')}</tr>`;
+  });
+  if (rows.length > 10) html += `<tr><td colspan="10" style="text-align:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;padding:12px;">... and ${rows.length-10} more rows</td></tr>`;
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+function showProgress() {
+  const el = document.getElementById('prog-card');
+  el.style.display = 'block';
+  el.querySelector('#prog-log').innerHTML = '';
+  el.querySelector('#prog-bar').style.width = '0%';
+  el.querySelector('#spinner').style.display = 'block';
+  document.getElementById('result-card').style.display = 'none';
+  el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function setProgress(p) {
+  document.getElementById('prog-bar').style.width = p + '%';
+}
+
+function logStep(msg, type) {
+  const log = document.getElementById('prog-log');
+  const existing = log.querySelector('.log-active');
+  if (type === 'active') {
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.className = 'log-active';
+    div.textContent = '→ ' + msg;
+    log.appendChild(div);
+  } else {
+    if (existing) {
+      existing.className = 'log-done';
+      existing.textContent = msg;
+    } else {
+      const div = document.createElement('div');
+      div.className = 'log-done';
+      div.textContent = msg;
+      log.appendChild(div);
+    }
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+function stopSpinner(msg) {
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('prog-title').textContent = msg || 'Done';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-card');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.scrollIntoView({behavior:'smooth'});
+}
+function hideError() { document.getElementById('error-card').style.display = 'none'; }
+
+function setBtn(disabled) {
+  const b = document.getElementById('genBtn');
+  b.disabled = disabled;
+  b.innerHTML = disabled ? '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Generating...' : '⚡ Generate Question Bank';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+updateTotal();
+renderSidebarHistory();
+</script>
+</body>
+</html>
