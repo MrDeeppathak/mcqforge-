@@ -6,7 +6,7 @@ A free, open-source web application that generates high-quality Multiple Choice 
 ---
 
 ## 🔴 Live Demo
-👉 **[mcqforge.github.io](https://mcqforge.github.io)**
+👉 **[mcqforge.github.io]([https://mcqforge.github.io](https://mrdeeppathak.github.io/mcqforge-/))**
 
 ---
 
