@@ -1124,21 +1124,45 @@ async function generate() {
   try {
     for (let i = 0; i < topics.length; i++) {
       const t = topics[i];
-      logStep(`Generating ${t.count} MCQs — ${t.name}`, 'active');
-      setProgress(Math.round((i / topics.length) * 80));
+      const BATCH = 20; // review every 20 MCQs
+      let topicRows = [];
+      let remaining = t.count;
+      let batchNum = 0;
 
-      const prompt = buildPrompt(syllabus, subject, unit, t.name, t.count, diff, textbook, orderNum);
-      const raw    = await callAI(apiKey, prompt);
-      const rows   = parseRows(raw, orderNum);
+      while (remaining > 0) {
+        const batchCount = Math.min(remaining, BATCH);
+        batchNum++;
+        const batchLabel = t.count > BATCH ? ` (batch ${batchNum})` : '';
 
-      if (rows.length === 0) {
-        throw new Error(`AI returned output but no valid rows could be parsed for topic "${t.name}". The AI may have returned an unexpected format. Please try again or switch to a different AI model.`);
+        // ── STEP 1: Generate ──
+        logStep(`Generating ${batchCount} MCQs — ${t.name}${batchLabel}`, 'active');
+        setProgress(Math.round((i / topics.length) * 80));
+
+        const prompt = buildPrompt(syllabus, subject, unit, t.name, batchCount, diff, textbook, orderNum);
+        const raw = await callAI(apiKey, prompt);
+
+        // ── STEP 2: Internal Review ──
+        logStep(`Reviewing & fixing MCQs — ${t.name}${batchLabel}`, 'active');
+        const reviewPrompt = buildReviewPrompt(raw);
+        const reviewed = await callAI(apiKey, reviewPrompt);
+
+        // ── STEP 3: Parse reviewed output ──
+        const rows = parseRows(reviewed, orderNum);
+
+        if (rows.length === 0) {
+          throw new Error(`No valid MCQs parsed for topic "${t.name}". Please try again or switch AI model.`);
+        }
+
+        topicRows = topicRows.concat(rows);
+        orderNum += rows.length;
+        remaining -= batchCount;
+
+        logStep(`${t.name}${batchLabel} — ${rows.length} MCQs verified ✓`, 'done');
+        setProgress(Math.round(((i + (1 - remaining/t.count)) / topics.length) * 90));
       }
-      allRows = allRows.concat(rows);
-      orderNum += rows.length;
 
-      logStep(`${t.name} — ${rows.length} done`, 'done');
-      setProgress(Math.round(((i+1)/topics.length)*90));
+      allRows = allRows.concat(topicRows);
+      logStep(`${t.name} — ${topicRows.length} MCQs complete`, 'done');
     }
 
     setProgress(100);
@@ -1188,35 +1212,91 @@ A: [option 1 text]
 B: [option 2 text]
 C: [option 3 text]
 D: [option 4 text]
-ANS: [1, 2, 3, or 4 — which option A/B/C/D is correct]
+ANS: [1, 2, 3, or 4 — which option is correct]
 SOL: [2-3 sentence explanation of why the answer is correct]
 BL: [Blooms level: 1=recall, 2=understand, 3=apply, 4=analyze]
 ###
 
-Separate each question block with ### on its own line.
+Separate every question block with ### on its own line.
 
 RULES:
-- ANS must be exactly one digit: 1 (=A), 2 (=B), 3 (=C), or 4 (=D)
+- ANS must be exactly one digit: 1 (=A is correct), 2 (=B is correct), 3 (=C is correct), 4 (=D is correct)
 - SOL must explain WHY the correct answer is right in 2-3 sentences
 - BL must be 1, 2, 3, or 4 only
 
 DISTRACTOR QUALITY (very important):
 ✓ All 4 options must use real technical terminology from the subject domain
-✓ All options must be similar in length and complexity  
+✓ All options must be similar in length and complexity
 ✓ Each wrong option must represent a plausible misconception students would have
 ✗ NEVER use "None of the above" or "All of the above"
 ✗ NEVER make wrong options obviously absurd or unrelated
 
 QUESTION TYPE MIX — include variety across the ${count} questions:
-1. Standard analytical MCQ — scenario-based, tests deep understanding (majority)
-2. True/False — write as: "State True or False: [statement]" then A: True  B: False  C:  D: 
-3. Fill in the blank — use ________ in question, 4 plausible word/phrase completions as options
-4. Match the column — put HTML table in Q: field, options like A: A-1 B-2 C-3 D-4
 
-For Match the column, use this HTML in the Q: field:
-<p>Match the following [concept]:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item1</td><td style="width: 49.941%; height: 47px;">1. Desc1</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. Item2</td><td style="width: 49.941%; height: 47px;">2. Desc2</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. Item3</td><td style="width: 49.941%; height: 47px;">3. Desc3</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. Item4</td><td style="width: 49.941%; height: 47px;">4. Desc4</td></tr></tbody></table>
+TYPE 1 — Standard MCQ (majority):
+Q: [analytical scenario-based question]
+A: [plausible wrong option]
+B: [correct answer]
+C: [plausible wrong option]
+D: [plausible wrong option]
+ANS: 2
 
-OUTPUT ONLY the question blocks. No extra text, no numbering, no markdown.`;
+TYPE 2 — True/False (IMPORTANT — follow exactly):
+Q: State True or False: [statement about the topic]
+A: True 
+B: False 
+C: 
+D: 
+ANS: 1
+NOTE: A must be "True " (with one trailing space), B must be "False " (with one trailing space), C and D must be empty.
+
+TYPE 3 — Fill in the blank:
+Q: [sentence with ________ as the blank]
+A: [plausible word/phrase]
+B: [correct word/phrase]
+C: [plausible word/phrase]
+D: [plausible word/phrase]
+ANS: 2
+
+TYPE 4 — Match the column (IMPORTANT — follow exactly):
+The Q: field must contain this EXACT HTML table format. Do NOT just write text like "Match the following X with Y:" — you MUST include the full HTML table:
+
+Q: <p>Match the following [concept] with their [attributes]:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. [Item1]</td><td style="width: 49.941%; height: 47px;">1. [Description1]</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. [Item2]</td><td style="width: 49.941%; height: 47px;">2. [Description2]</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. [Item3]</td><td style="width: 49.941%; height: 47px;">3. [Description3]</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. [Item4]</td><td style="width: 49.941%; height: 47px;">4. [Description4]</td></tr></tbody></table>
+A: A-1 B-2 C-3 D-4
+B: A-2 B-1 C-4 D-3
+C: A-3 B-4 C-1 D-2
+D: A-4 B-3 C-2 D-1
+ANS: 1
+
+OUTPUT ONLY the question blocks. No extra text, no numbering, no introduction, no markdown.`;
+}
+
+// ═══════════════════════════════════════════════
+// REVIEW PROMPT — internal QA check every 20 MCQs
+// ═══════════════════════════════════════════════
+function buildReviewPrompt(rawBlocks) {
+  return `You are a strict academic quality reviewer. Review the following MCQ blocks and fix any errors.
+
+RULES TO CHECK AND FIX:
+1. Match the column questions: The Q: field MUST contain a full HTML table in this format:
+   <p>Match the following...:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item</td><td style="width: 49.941%; height: 47px;">1. Desc</td></tr>...</tbody></table>
+   If Q: only has plain text like "Match the following X with Y:" with no HTML table — rewrite it with the full HTML table format.
+
+2. True/False questions: A: must be exactly "True " (with ONE trailing space). B: must be exactly "False " (with ONE trailing space). C: and D: must be empty. Fix if wrong.
+
+3. ANS must be exactly one digit: 1, 2, 3, or 4. Fix if missing or wrong.
+
+4. SOL must be 2-3 sentences explaining WHY the answer is correct. Add if missing.
+
+5. BL must be 1, 2, 3, or 4. Fix if missing.
+
+6. All 4 options (A, B, C, D) must use real technical terminology — fix any obviously absurd distractors.
+
+Return ALL the question blocks with fixes applied. Keep the exact same Q:/A:/B:/C:/D:/ANS:/SOL:/BL:/### format.
+Do NOT add any extra text, numbering, or explanation outside the blocks.
+
+MCQ BLOCKS TO REVIEW:
+${rawBlocks}`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1333,40 +1413,57 @@ function parseRows(text, startOrder) {
     const ans   = String(ansRaw).replace(/[^1-4]/g, '').charAt(0) || '1';
     const bloom = String(bloomRaw).replace(/[^1-4]/g, '').charAt(0) || '2';
 
+    // Fix True/False trailing spaces — enforced in code regardless of AI output
+    const qLower = question.toLowerCase();
+    const isTrueFalse = qLower.includes('state true or false') || 
+                        (opt1.toLowerCase().trim() === 'true' && opt2.toLowerCase().trim() === 'false');
+    
+    let finalOpt1 = opt1;
+    let finalOpt2 = opt2;
+    let finalOpt3 = opt3;
+    let finalOpt4 = opt4;
+
+    if (isTrueFalse) {
+      finalOpt1 = 'True ';   // trailing space required by LMS
+      finalOpt2 = 'False ';  // trailing space required by LMS
+      finalOpt3 = '';
+      finalOpt4 = '';
+    }
+
     // Build the 32-column row
     const row = [
-      '',          // [0]  Question_Id
-      question,    // [1]  Question
-      '',          // [2]  Question_image
-      '',          // [3]  category_ids
-      'Text',      // [4]  Question_type
-      opt1,        // [5]  Option1
-      '',          // [6]  Option1_image
-      opt2,        // [7]  Option2
-      '',          // [8]  Option2_image
-      opt3,        // [9]  Option3
-      '',          // [10] Option3_image
-      opt4,        // [11] Option4
-      '',          // [12] Option4_image
-      '',          // [13] Option5
-      '',          // [14] Option5_image
-      ans,         // [15] Answer
-      solution,    // [16] Solution
-      '',          // [17] Solution_image
-      '',          // [18] Hint
-      '',          // [19] Hint_image
-      bloom,       // [20] Blooms_level
-      diff,        // [21] Difficulty_level
-      '',          // [22] Topic_tags
-      '',          // [23] Prerequisite_tags
-      src,         // [24] Source
-      '',          // [25] Source_links
-      '',          // [26] Concept_Summary_id
-      '',          // [27] Order
-      '1',         // [28] math_type
-      '0',         // [29] force_upload
-      'MCQ',       // [30] field_type
-      ''           // [31] option_order
+      '',           // [0]  Question_Id
+      question,     // [1]  Question
+      '',           // [2]  Question_image
+      '',           // [3]  category_ids
+      'Text',       // [4]  Question_type
+      finalOpt1,    // [5]  Option1
+      '',           // [6]  Option1_image
+      finalOpt2,    // [7]  Option2
+      '',           // [8]  Option2_image
+      finalOpt3,    // [9]  Option3
+      '',           // [10] Option3_image
+      finalOpt4,    // [11] Option4
+      '',           // [12] Option4_image
+      '',           // [13] Option5
+      '',           // [14] Option5_image
+      ans,          // [15] Answer
+      solution,     // [16] Solution
+      '',           // [17] Solution_image
+      '',           // [18] Hint
+      '',           // [19] Hint_image
+      bloom,        // [20] Blooms_level
+      diff,         // [21] Difficulty_level
+      '',           // [22] Topic_tags
+      '',           // [23] Prerequisite_tags
+      src,          // [24] Source
+      '',           // [25] Source_links
+      '',           // [26] Concept_Summary_id
+      '',           // [27] Order
+      '1',          // [28] math_type
+      '0',          // [29] force_upload
+      'MCQ',        // [30] field_type
+      ''            // [31] option_order
     ];
 
     rows.push(row);
