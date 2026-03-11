@@ -959,7 +959,8 @@ select option { background: #0e0f14; }
             </div>
             <div class="result-actions">
               <button class="btn-dl btn-copy-tsv" onclick="copyTSV()">📋 Copy TSV</button>
-              <button class="btn-dl btn-tsv" onclick="downloadTSV()">⬇ Download .tsv</button>
+              <button class="btn-dl btn-copy-tsv" onclick="downloadTSV()">⬇ Download .tsv</button>
+              <button class="btn-dl btn-tsv" onclick="downloadExcel()">📊 Download Excel</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -1147,7 +1148,7 @@ async function generate() {
         const reviewed = await callAI(apiKey, reviewPrompt);
 
         // ── STEP 3: Parse reviewed output ──
-        const rows = parseRows(reviewed, orderNum);
+        const rows = parseRows(reviewed, orderNum, t.name);
 
         if (rows.length === 0) {
           throw new Error(`No valid MCQs parsed for topic "${t.name}". Please try again or switch AI model.`);
@@ -1378,10 +1379,61 @@ async function callOpenRouter(key, prompt) {
 }
 
 // ═══════════════════════════════════════════════
+// MATCH THE COLUMN HTML BUILDER — done in JS, never trusted to AI
+// ═══════════════════════════════════════════════
+function buildMatchHTML(questionText) {
+  // Extract items from patterns like "A. item ... 1. desc" anywhere in the text
+  // Try to parse structured match items from the raw question text
+  const text = questionText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Look for pattern: "A. X ... B. Y ... C. Z ... D. W" and "1. a ... 2. b ... 3. c ... 4. d"
+  const leftItems  = [];
+  const rightItems = [];
+
+  // Extract left column items (A. B. C. D.)
+  const leftMatches = text.match(/[A-D]\.\s*([^A-D\d\.]{3,60}?)(?=[A-D]\.|[1-4]\.|$)/g) || [];
+  leftMatches.forEach(m => {
+    const val = m.replace(/^[A-D]\.\s*/, '').trim();
+    if (val) leftItems.push(val);
+  });
+
+  // Extract right column items (1. 2. 3. 4.)
+  const rightMatches = text.match(/[1-4]\.\s*([^A-D\d\.]{3,80}?)(?=[A-D]\.|[1-4]\.|$)/g) || [];
+  rightMatches.forEach(m => {
+    const val = m.replace(/^[1-4]\.\s*/, '').trim();
+    if (val) rightItems.push(val);
+  });
+
+  // Extract topic from text (everything before first A.)
+  const topicMatch = text.match(/^(.*?)(?:[A-D]\.)/);
+  const topicPart  = topicMatch ? topicMatch[1].replace(/match the following[:\s]*/i, '').trim() : '';
+
+  // If we can't extract structured items, use the raw text as-is inside a simple table wrapper
+  if (leftItems.length < 2 || rightItems.length < 2) {
+    // Fallback: wrap plain text in table with 4 placeholder rows
+    return `<p>${text}</p>`;
+  }
+
+  // Pad to 4 items
+  while (leftItems.length  < 4) leftItems.push('—');
+  while (rightItems.length < 4) rightItems.push('—');
+
+  const title = topicPart || 'the following';
+  return `<p>Match the following ${title}:</p>` +
+    `<table style="border-collapse: collapse; width: 100%; height: 188px;" border="1">` +
+    `<tbody>` +
+    `<tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. ${leftItems[0]}</td><td style="width: 49.941%; height: 47px;">1. ${rightItems[0]}</td></tr>` +
+    `<tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. ${leftItems[1]}</td><td style="width: 49.941%; height: 47px;">2. ${rightItems[1]}</td></tr>` +
+    `<tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. ${leftItems[2]}</td><td style="width: 49.941%; height: 47px;">3. ${rightItems[2]}</td></tr>` +
+    `<tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. ${leftItems[3]}</td><td style="width: 49.941%; height: 47px;">4. ${rightItems[3]}</td></tr>` +
+    `</tbody></table>`;
+}
+
+// ═══════════════════════════════════════════════
 // PARSE ROWS — reads Q:/A:/B:/C:/D:/ANS:/SOL:/BL: blocks
 // ═══════════════════════════════════════════════
-function parseRows(text, startOrder) {
-  const src = document.getElementById('textbook').value.trim() || 'AI Generated';
+function parseRows(text, startOrder, topicName) {
+  const src  = document.getElementById('textbook').value.trim() || 'AI Generated';
   const diff = document.querySelector('input[name=diff]:checked').value;
 
   // Split into blocks by ### separator
@@ -1396,7 +1448,7 @@ function parseRows(text, startOrder) {
       return line.substring(line.indexOf(':') + 1).trim();
     };
 
-    const question = get('Q');
+    let   question = get('Q');
     const opt1     = get('A');
     const opt2     = get('B');
     const opt3     = get('C');
@@ -1405,32 +1457,41 @@ function parseRows(text, startOrder) {
     const solution = get('SOL');
     const bloomRaw = get('BL');
 
-    // Skip incomplete blocks
     if (!question || question.length < 5) return;
     if (!opt1 || !opt2) return;
 
-    // Clean answer — must be 1,2,3,4
     const ans   = String(ansRaw).replace(/[^1-4]/g, '').charAt(0) || '1';
     const bloom = String(bloomRaw).replace(/[^1-4]/g, '').charAt(0) || '2';
 
-    // Fix True/False trailing spaces — enforced in code regardless of AI output
-    const qLower = question.toLowerCase();
-    const isTrueFalse = qLower.includes('state true or false') || 
-                        (opt1.toLowerCase().trim() === 'true' && opt2.toLowerCase().trim() === 'false');
-    
+    // ── FIX 1: Match the column — detect and rebuild HTML table in JS ──
+    const isMatch = /match the following/i.test(question);
+    if (isMatch) {
+      // Check if proper HTML table already present
+      if (!question.includes('<table')) {
+        // Rebuild with proper HTML table using JS parser
+        question = buildMatchHTML(question);
+      }
+    }
+
+    // ── FIX 2: True/False — enforce trailing space in code ──
     let finalOpt1 = opt1;
     let finalOpt2 = opt2;
     let finalOpt3 = opt3;
     let finalOpt4 = opt4;
 
+    const isTrueFalse = /state true or false/i.test(question) ||
+                        (opt1.toLowerCase().trim() === 'true' && opt2.toLowerCase().trim() === 'false');
     if (isTrueFalse) {
-      finalOpt1 = 'True ';   // trailing space required by LMS
-      finalOpt2 = 'False ';  // trailing space required by LMS
+      finalOpt1 = 'True ';
+      finalOpt2 = 'False ';
       finalOpt3 = '';
       finalOpt4 = '';
     }
 
-    // Build the 32-column row
+    // ── FIX 3: Topic tag — use actual topic name ──
+    const topicTag = topicName || '';
+
+    // Build 32-column row
     const row = [
       '',           // [0]  Question_Id
       question,     // [1]  Question
@@ -1454,7 +1515,7 @@ function parseRows(text, startOrder) {
       '',           // [19] Hint_image
       bloom,        // [20] Blooms_level
       diff,         // [21] Difficulty_level
-      '',           // [22] Topic_tags
+      topicTag,     // [22] Topic_tags  ← actual topic name now
       '',           // [23] Prerequisite_tags
       src,          // [24] Source
       '',           // [25] Source_links
@@ -1533,6 +1594,55 @@ function copyTSV() {
   navigator.clipboard.writeText(currentTSV).then(() => showToast('Copied to clipboard!'));
 }
 
+// ═══════════════════════════════════════════════
+// EXCEL DOWNLOAD — uses SheetJS
+// ═══════════════════════════════════════════════
+function downloadExcel(rows, metaObj) {
+  const useRows = rows || currentRows;
+  const useMeta = metaObj || currentMeta;
+  if (!useRows || !useRows.length) return;
+
+  const headers = [
+    "Question_Id","Question","Question_image","category_ids","Question_type",
+    "Option1","Option1_image","Option2","Option2_image",
+    "Option3","Option3_image","Option4","Option4_image",
+    "Option5","Option5_image","Answer","Solution","Solution_image",
+    "Hint","Hint_image","Blooms_level","Difficulty_level",
+    "Topic_tags","Prerequisite_tags","Source","Source_links",
+    "Concept_Summary_id","Order","math_type","force_upload","field_type","option_order"
+  ];
+
+  // Load SheetJS dynamically
+  if (typeof XLSX === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => _buildExcel(useRows, useMeta, headers);
+    document.head.appendChild(script);
+  } else {
+    _buildExcel(useRows, useMeta, headers);
+  }
+}
+
+function _buildExcel(rows, meta, headers) {
+  const wsData = [headers, ...rows];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch:10},{wch:60},{wch:8},{wch:12},{wch:10},
+    {wch:35},{wch:8},{wch:35},{wch:8},{wch:35},{wch:8},{wch:35},{wch:8},
+    {wch:8},{wch:8},{wch:8},{wch:55},{wch:8},{wch:8},{wch:8},
+    {wch:10},{wch:10},{wch:30},{wch:25},{wch:35},
+    {wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'MCQ_Bank');
+  const fname = `mcq_${(meta.subject||'bank').replace(/\s+/g,'_')}_${Date.now()}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('Excel downloaded!');
+}
+
 function downloadHistoryTSV(id) {
   const h = getHistory();
   const item = h.find(x => x.id === id);
@@ -1551,6 +1661,14 @@ function copyHistoryTSV(id) {
   const item = h.find(x => x.id === id);
   if (!item) return;
   navigator.clipboard.writeText(item.tsv).then(() => showToast('Copied!'));
+}
+
+function downloadHistoryExcel(id) {
+  const h = getHistory();
+  const item = h.find(x => x.id === id);
+  if (!item) return;
+  const rows = parseSavedRows(item.tsv).map(r => { while(r.length<32) r.push(''); return r.slice(0,32); });
+  downloadExcel(rows, item);
 }
 
 // ═══════════════════════════════════════════════
@@ -1649,7 +1767,8 @@ function renderHistoryPanel(focusId) {
         </div>
         <div class="hp-actions">
           <button class="btn-dl btn-copy-tsv" onclick="copyHistoryTSV('${item.id}')">📋 Copy</button>
-          <button class="btn-dl btn-tsv" onclick="downloadHistoryTSV('${item.id}')">⬇ Download</button>
+          <button class="btn-dl btn-copy-tsv" onclick="downloadHistoryTSV('${item.id}')">⬇ .tsv</button>
+          <button class="btn-dl btn-tsv" onclick="downloadHistoryExcel('${item.id}')">📊 Excel</button>
           <button class="btn-dl btn-copy-tsv" style="color:var(--red);border-color:rgba(255,107,107,0.3);" onclick="deleteHistoryItem('${item.id}')">🗑 Delete</button>
         </div>
       </div>
