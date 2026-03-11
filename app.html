@@ -1177,45 +1177,71 @@ Topic: ${topic}
 Difficulty: ${diff} (${diff==='2'?'Hard/Analytical — scenario-based, conceptual depth required':'Easy/Moderate — direct but accurate'})
 Source: ${src}
 
-OUTPUT FORMAT: Tab-separated rows. Each row = one question. Exactly 32 tab-separated columns:
-Question_Id[TAB]Question[TAB]Question_image[TAB]category_ids[TAB]Question_type[TAB]Option1[TAB]Option1_image[TAB]Option2[TAB]Option2_image[TAB]Option3[TAB]Option3_image[TAB]Option4[TAB]Option4_image[TAB]Option5[TAB]Option5_image[TAB]Answer[TAB]Solution[TAB]Solution_image[TAB]Hint[TAB]Hint_image[TAB]Blooms_level[TAB]Difficulty_level[TAB]Topic_tags[TAB]Prerequisite_tags[TAB]Source[TAB]Source_links[TAB]Concept_Summary_id[TAB]Order[TAB]math_type[TAB]force_upload[TAB]field_type[TAB]option_order
+OUTPUT FORMAT — VERY IMPORTANT:
+Each question = exactly ONE line. Each line has exactly 32 values separated by TAB characters.
+The 32 values in exact order are:
 
-COLUMN RULES:
-- Question_Id: empty
-- Question_image, category_ids, Option1_image, Option2_image, Option3_image, Option4_image, Option5, Option5_image: all empty
-- Question_type: Text
-- Answer: 1, 2, 3 or 4 (which option number is correct)
-- Solution: 2–3 sentence explanation of why the answer is correct
-- Solution_image, Hint, Hint_image, Source_links, Concept_Summary_id: empty
-- Blooms_level: 1=recall 2=understand 3=apply/fill-blank/match 4=analyze/evaluate
-- Difficulty_level: ${diff}
-- Topic_tags: JSON array e.g. ["${topic}"]
-- Prerequisite_tags: JSON array of prerequisite concepts
-- Source: ${src}
-- Order: sequential starting from ${startOrder}
-- math_type: 0
-- force_upload: 0
-- field_type: MCQ
-- option_order: empty
+POSITION 1:  [EMPTY — leave blank]
+POSITION 2:  Question text
+POSITION 3:  [EMPTY]
+POSITION 4:  [EMPTY]
+POSITION 5:  Text
+POSITION 6:  Option1 text
+POSITION 7:  [EMPTY]
+POSITION 8:  Option2 text
+POSITION 9:  [EMPTY]
+POSITION 10: Option3 text
+POSITION 11: [EMPTY]
+POSITION 12: Option4 text
+POSITION 13: [EMPTY]
+POSITION 14: [EMPTY]
+POSITION 15: [EMPTY]
+POSITION 16: Answer (just the number: 1, 2, 3, or 4)
+POSITION 17: Solution (2-3 sentence explanation)
+POSITION 18: [EMPTY]
+POSITION 19: [EMPTY]
+POSITION 20: [EMPTY]
+POSITION 21: Blooms_level (1, 2, 3, or 4)
+POSITION 22: Difficulty_level (${diff})
+POSITION 23: Topic_tags (e.g. D02B28GT01T01ST01)
+POSITION 24: [EMPTY]
+POSITION 25: ${src}
+POSITION 26: [EMPTY]
+POSITION 27: [EMPTY]
+POSITION 28: [EMPTY]
+POSITION 29: 1
+POSITION 30: 0
+POSITION 31: MCQ
+POSITION 32: [EMPTY]
 
-DISTRACTOR RULES (CRITICAL for quality):
+EXAMPLE of one correct output line (tabs shown as →):
+→Question text here→→→Text→Option A→→Option B→→Option C→→Option D→→→→2→Solution here→→→→2→2→D02B28GT01T01ST01→→${src}→→→→1→0→MCQ→
+
+RULES:
+- Blooms_level: 1=recall, 2=understand, 3=apply/fill-in-blank/match, 4=analyze/evaluate
+- Answer: ONLY the digit 1, 2, 3, or 4
+- For True/False: Position6="True " Position8="False " Position10="" Position12=""
+- NEVER output column headers
+- NEVER use markdown, code blocks, or explanations
+- Every line must start with a TAB (empty Position 1)
+
+DISTRACTOR RULES (CRITICAL):
 ✓ All 4 options MUST use real technical terminology from the domain
-✓ All options must have similar length and complexity
-✓ Each wrong option should represent a plausible misconception
+✓ All options must be similar in length and complexity
+✓ Each wrong option must represent a plausible misconception
 ✗ NEVER use "None of the above" or "All of the above"
-✗ NEVER use obviously absurd or unrelated options
-✗ NEVER make the correct answer longer/shorter than the wrong ones
+✗ NEVER use obviously wrong or absurd options
 
-QUESTION TYPE MIX (vary across your output):
-1. Standard MCQ — analytical, scenario-based (majority)
-2. True/False — "State True or False: [statement]" → Option1="True " Option2="False " Option3="" Option4=""
-3. Fill in blank — use ________ in question text, 4 plausible completions as options
-4. Match the column — use HTML table in Question cell, options as "A-1 B-2 C-3 D-4" etc.
+QUESTION TYPE MIX:
+1. Standard analytical MCQ (majority of questions)
+2. True/False — "State True or False: [statement]" → Opt1="True " Opt2="False " Opt3="" Opt4=""
+3. Fill in the blank — use ________ in question, 4 plausible word/phrase options
+4. Match the column — HTML table in question field, options like "A-1 B-2 C-3 D-4"
 
-Match the column HTML format:
+Match the column HTML table format for the Question field:
 <p>Match the following:</p><table style="border-collapse: collapse; width: 100%; height: 188px;" border="1"><tbody><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">A. Item1</td><td style="width: 49.941%; height: 47px;">1. Desc1</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">B. Item2</td><td style="width: 49.941%; height: 47px;">2. Desc2</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">C. Item3</td><td style="width: 49.941%; height: 47px;">3. Desc3</td></tr><tr style="height: 47px;"><td style="width: 49.941%; height: 47px;">D. Item4</td><td style="width: 49.941%; height: 47px;">4. Desc4</td></tr></tbody></table>
 
-OUTPUT ONLY the tab-separated data rows. No headers. No markdown. No code blocks. No explanations.`;
+OUTPUT ONLY the data lines. No headers. No markdown. No explanations. No code blocks.`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1300,21 +1326,71 @@ async function callOpenRouter(key, prompt) {
 // PARSE ROWS
 // ═══════════════════════════════════════════════
 function parseRows(text, startOrder) {
-  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>10);
+  const lines = text.split('\n').map(l => l.trimEnd()).filter(l => l.length > 4);
   const rows = [];
-  let order = startOrder;
+
   lines.forEach(line => {
-    if (/^question_id/i.test(line)) return;
+    // Skip header lines
+    if (/^question_id/i.test(line.trim())) return;
+    if (/^position/i.test(line.trim())) return;
+
     const cols = line.split('\t');
-    if (cols.length < 16) return;
-    while (cols.length < 32) cols.push('');
-    cols[27] = String(order++);
-    cols[4]  = cols[4]  || 'Text';
-    cols[28] = '0';
-    cols[29] = '0';
-    cols[30] = cols[30] || 'MCQ';
-    rows.push(cols.slice(0,32));
+
+    // The AI should output lines starting with a tab (empty col 1)
+    // If line doesn't start with tab, the question is in col 0 — shift everything right
+    let c = cols;
+    if (cols[0] && cols[0].trim().length > 5 && !cols[1]) {
+      // Question is in position 0, need to shift right by 1
+      c = ['', ...cols];
+    } else if (cols[0] && cols[0].trim().length > 5) {
+      // Question might be in position 0 with data after
+      // Check if position 4 is "Text" (correct) or position 3 is "Text" (shifted)
+      if (cols[3] === 'Text') {
+        c = ['', ...cols]; // shift right
+      } else if (cols[4] === 'Text') {
+        c = cols; // already correct
+      } else {
+        c = ['', ...cols]; // default: shift right
+      }
+    }
+
+    // Pad to 32
+    while (c.length < 32) c.push('');
+    c = c.slice(0, 32);
+
+    // Enforce fixed values at correct positions
+    c[0]  = '';           // Question_Id: empty
+    c[2]  = '';           // Question_image: empty
+    c[3]  = '';           // category_ids: empty
+    c[4]  = 'Text';       // Question_type
+    c[6]  = '';           // Option1_image
+    c[8]  = '';           // Option2_image
+    c[10] = '';           // Option3_image
+    c[12] = '';           // Option4_image
+    c[13] = '';           // Option5
+    c[14] = '';           // Option5_image
+    c[17] = '';           // Solution_image
+    c[18] = '';           // Hint
+    c[19] = '';           // Hint_image
+    c[23] = '';           // Prerequisite_tags: empty (matches correct format)
+    c[25] = '';           // Source_links
+    c[26] = '';           // Concept_Summary_id
+    c[27] = '';           // Order: empty (matches correct format)
+    c[28] = '1';          // math_type: 1 (matches correct format)
+    c[29] = '0';          // force_upload
+    c[30] = 'MCQ';        // field_type
+    c[31] = '';           // option_order
+
+    // Validate: must have a question (pos 1) and at least answer (pos 15)
+    if (!c[1] || c[1].trim().length < 5) return;
+    if (!c[15] || !['1','2','3','4'].includes(String(c[15]).trim())) return;
+
+    // Clean answer field — extract just the digit
+    c[15] = String(c[15]).trim().replace(/[^1-4]/g, '') || '1';
+
+    rows.push(c);
   });
+
   return rows;
 }
 
